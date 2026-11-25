@@ -64,6 +64,12 @@ type matchText struct {
 	byteOffset       int // original-string byte index of runes[0]
 	byteOffsets      []int
 	byteOffsetsReady bool
+	// deadline is the timeout deadline for the whole traversal that produced
+	// this text. All matches advanced with FindNextMatch share it, so a
+	// caller cannot obtain a fresh timeout by repeatedly continuing an old
+	// match. deadlineSet distinguishes a real deadline from the zero value.
+	deadline    fasttime
+	deadlineSet bool
 	// The first returned capture retains this metadata anyway. Store it here
 	// to avoid a separate allocation; subsequent matches need their own record.
 	initialCaptureUsed bool

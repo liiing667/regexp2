@@ -176,7 +176,13 @@ func (r *Runner) scan(rt []rune, textInfo *matchText, textstart, candidate, prev
 		r.Runtextpos += bump
 	}
 
-	r.startTimeoutWatch()
+	r.startTimeoutWatch(textInfo)
+	// A traversal shares one deadline across all of its searches. Check it
+	// before searching, so an exhausted traversal cannot keep looking for
+	// more matches (and, when it finds none, cannot report a clean end).
+	if err := r.CheckTimeout(); err != nil {
+		return nil, err
+	}
 	for {
 		if minRequiredLength > 0 {
 			if r.code.RightToLeft {
@@ -2363,6 +2369,12 @@ func (r *Runner) tidyMatch(mode scanMode) *Match {
 		// Rune input needs capture text metadata only when a match escapes the runner.
 		if match.text == nil {
 			match.text = newMatchText(r.Runtext)
+			if !r.ignoreTimeout {
+				// This scan started the traversal, so its deadline covers
+				// every later FindNextMatch that continues the result.
+				match.text.deadline = r.deadline
+				match.text.deadlineSet = true
+			}
 		}
 		match.tidy(r.Runtextpos)
 		return match
@@ -2567,11 +2579,19 @@ func (r *Runner) ecmaBoundaryOptions() RegexOptions {
 	return None
 }
 
-func (r *Runner) startTimeoutWatch() {
+func (r *Runner) startTimeoutWatch(textInfo *matchText) {
 	if r.ignoreTimeout {
 		return
 	}
+	if textInfo != nil && textInfo.deadlineSet {
+		r.deadline = textInfo.deadline
+		return
+	}
 	r.deadline = makeDeadline(r.timeout)
+	if textInfo != nil {
+		textInfo.deadline = r.deadline
+		textInfo.deadlineSet = true
+	}
 }
 
 func (r *Runner) CheckTimeout() error {
@@ -2579,6 +2599,10 @@ func (r *Runner) CheckTimeout() error {
 		return nil
 	}
 
+	return r.timeoutError()
+}
+
+func (r *Runner) timeoutError() error {
 	return fmt.Errorf("%w after %v", ErrMatchTimeout, r.timeout)
 }
 

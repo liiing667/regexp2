@@ -36,7 +36,10 @@ var (
 type Regexp struct {
 	// A match will time out if it takes (approximately) more than
 	// MatchTimeout. This is a safety check in case the match
-	// encounters catastrophic backtracking.  The default value
+	// encounters catastrophic backtracking. Matches advanced with
+	// FindNextMatch share the deadline of the search that produced
+	// them, so an iteration cannot extend the timeout indefinitely;
+	// a new initial search gets a new deadline. The default value
 	// (DefaultMatchTimeout) causes all time out checking to be
 	// suppressed.
 	MatchTimeout time.Duration
@@ -441,6 +444,10 @@ func (m *stringByteMapper) byteIndex(runeIndex int) int {
 
 // FindNextMatch returns the next match in the same input string as the match parameter.
 // Will return nil if there is no next match or if given a nil match.
+// All matches from one initial search share a single MatchTimeout budget; once
+// that traversal exceeds it, FindNextMatch returns an error wrapping
+// ErrMatchTimeout instead of another match, even if called again with an older
+// match. A new initial search starts a new budget.
 // It can reuse what earlier calls read of the input, so a rune slice input
 // must not change between them.
 func (re *Regexp) FindNextMatch(m *Match) (*Match, error) {

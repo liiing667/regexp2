@@ -309,7 +309,9 @@ match will fail with an error wrapping `ErrMatchTimeout` after approximately
 `errors.Is(err, regexp2.ErrMatchTimeout)`, including when the error is wrapped
 again. The error message includes the configured timeout (for example,
 `match timeout after 10ms`) and omits the input text. No timeout checks are done
-by default.
+by default. Matches advanced with `FindNextMatch` share the deadline of the
+search that produced them, so continuing an old match cannot extend the timeout
+indefinitely; a new initial search starts a new deadline.
 
 Timeout checking is not free. The current timeout checking implementation starts
 a background worker that updates a clock value approximately once every 100
